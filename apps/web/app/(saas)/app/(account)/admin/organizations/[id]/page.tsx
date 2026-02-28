@@ -1,4 +1,3 @@
-import { auth } from "@repo/auth";
 import { OrganizationForm } from "@saas/admin/component/organizations/OrganizationForm";
 import { getAdminPath } from "@saas/admin/lib/links";
 import { fullOrganizationQueryKey } from "@saas/organizations/lib/api";
@@ -25,13 +24,16 @@ export default async function OrganizationFormPage({
 
 	await queryClient.prefetchQuery({
 		queryKey: fullOrganizationQueryKey(id),
-		queryFn: async () =>
-			await auth.api.getFullOrganization({
+		queryFn: async () => {
+			const { auth } = await import("@repo/auth");
+
+			return await auth.api.getFullOrganization({
 				query: {
 					organizationId: id,
 				},
 				headers: await headers(),
-			}),
+			});
+		},
 	});
 
 	return (

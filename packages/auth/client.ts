@@ -22,4 +22,5 @@ export const authClient = createAuthClient({
 
 export type AuthClientErrorCodes = typeof authClient.$ERROR_CODES & {
 	INVALID_INVITATION: string;
+	USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: string;
 };

@@ -23,7 +23,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
 					success: "!text-success",
 					error: "!text-destructive",
 				},
-				duration: 5000,
+				duration: 1500,
 			}}
 			{...props}
 		/>

@@ -1,6 +1,5 @@
 import { config } from "@repo/config";
 import { SignupForm } from "@saas/auth/components/SignupForm";
-import { getInvitation } from "@saas/auth/lib/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { withQuery } from "ufo";
@@ -31,6 +30,7 @@ export default async function SignupPage({
 	}
 
 	if (invitationId) {
+		const { getInvitation } = await import("@saas/auth/lib/server");
 		const invitation = await getInvitation(invitationId);
 
 		if (

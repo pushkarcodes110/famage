@@ -36,6 +36,7 @@ const getLocaleFromRequest = (request?: Request) => {
 };
 
 const appUrl = getBaseUrl();
+const requireEmailVerification = config.auth.requireEmailVerification;
 
 export const auth = betterAuth({
 	baseURL: appUrl,
@@ -128,6 +129,22 @@ export const auth = betterAuth({
 				type: "string",
 				required: false,
 			},
+			age: {
+				type: "number",
+				required: false,
+			},
+			dateOfBirth: {
+				type: "string",
+				required: false,
+			},
+			phoneNumber: {
+				type: "string",
+				required: false,
+			},
+			city: {
+				type: "string",
+				required: false,
+			},
 		},
 		deleteUser: {
 			enabled: true,
@@ -153,10 +170,9 @@ export const auth = betterAuth({
 	},
 	emailAndPassword: {
 		enabled: true,
-		// If signup is disabled, the only way to sign up is via an invitation. So in this case we can auto sign in the user, as the email is already verified by the invitation.
-		// If signup is enabled, we can't auto sign in the user, as the email is not verified yet.
-		autoSignIn: !config.auth.enableSignup,
-		requireEmailVerification: config.auth.enableSignup,
+		// Auto sign in when email verification is disabled.
+		autoSignIn: !requireEmailVerification,
+		requireEmailVerification,
 		sendResetPassword: async ({ user, url }, request) => {
 			const locale = getLocaleFromRequest(request);
 			await sendEmail({
@@ -171,7 +187,7 @@ export const auth = betterAuth({
 		},
 	},
 	emailVerification: {
-		sendOnSignUp: config.auth.enableSignup,
+		sendOnSignUp: requireEmailVerification,
 		autoSignInAfterVerification: true,
 		sendVerificationEmail: async (
 			{ user: { email, name }, url },

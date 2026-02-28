@@ -31,6 +31,9 @@ export function useAuthErrorMessages() {
 		),
 		USER_EMAIL_NOT_FOUND: t("auth.errors.userEmailNotFound"),
 		USER_ALREADY_EXISTS: t("auth.errors.userAlreadyExists"),
+		USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: t(
+			"auth.errors.userAlreadyExists",
+		),
 		INVALID_INVITATION: t("auth.errors.invalidInvitation"),
 		SESSION_EXPIRED: t("auth.errors.sessionExpired"),
 		FAILED_TO_UNLINK_LAST_ACCOUNT: t(
@@ -39,9 +42,13 @@ export function useAuthErrorMessages() {
 		ACCOUNT_NOT_FOUND: t("auth.errors.accountNotFound"),
 	};
 
-	const getAuthErrorMessage = (errorCode: string | undefined) => {
+	const getAuthErrorMessage = (
+		errorCode: string | undefined,
+		fallbackMessage?: string,
+	) => {
 		return (
 			authErrorMessages[errorCode as keyof typeof authErrorMessages] ||
+			fallbackMessage ||
 			t("auth.errors.unknown")
 		);
 	};

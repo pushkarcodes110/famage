@@ -21,6 +21,7 @@ export type Config = {
 	};
 	auth: {
 		enableSignup: boolean;
+		requireEmailVerification: boolean;
 		enableMagicLink: boolean;
 		enableSocialLogin: boolean;
 		enablePasskeys: boolean;

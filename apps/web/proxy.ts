@@ -12,6 +12,26 @@ export default async function proxy(req: NextRequest) {
 
 	const sessionCookie = getSessionCookie(req);
 
+	if (pathname === "/") {
+		return NextResponse.redirect(new URL("/famage", origin));
+	}
+
+	if (pathname.startsWith("/famage")) {
+		return NextResponse.next();
+	}
+
+	if (pathname === "/auth/login") {
+		return NextResponse.redirect(
+			new URL(`/famage/auth/login${req.nextUrl.search}`, origin),
+		);
+	}
+
+	if (pathname === "/auth/signup") {
+		return NextResponse.redirect(
+			new URL(`/famage/auth/signup${req.nextUrl.search}`, origin),
+		);
+	}
+
 	if (pathname.startsWith("/app")) {
 		const response = NextResponse.next();
 

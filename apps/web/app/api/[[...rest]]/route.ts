@@ -1,7 +1,11 @@
-import { app } from "@repo/api";
 import { handle } from "hono/vercel";
 
-const handler = handle(app);
+async function handler(request: Request) {
+	const { app } = await import("@repo/api");
+	const routeHandler = handle(app);
+
+	return routeHandler(request);
+}
 
 export const GET = handler;
 export const POST = handler;

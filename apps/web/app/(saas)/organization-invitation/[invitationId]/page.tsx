@@ -1,5 +1,3 @@
-import { auth } from "@repo/auth";
-import { getOrganizationById } from "@repo/database";
 import { OrganizationInvitationModal } from "@saas/organizations/components/OrganizationInvitationModal";
 import { AuthWrapper } from "@saas/shared/components/AuthWrapper";
 import { headers } from "next/headers";
@@ -11,6 +9,10 @@ export default async function OrganizationInvitationPage({
 	params: Promise<{ invitationId: string }>;
 }) {
 	const { invitationId } = await params;
+	const [{ auth }, { getOrganizationById }] = await Promise.all([
+		import("@repo/auth"),
+		import("@repo/database"),
+	]);
 
 	const invitation = await auth.api.getInvitation({
 		query: {

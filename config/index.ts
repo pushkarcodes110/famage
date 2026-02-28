@@ -57,6 +57,8 @@ export const config = {
 	auth: {
 		// Whether users should be able to create accounts (otherwise users can only be by admins)
 		enableSignup: true,
+		// Whether users must verify their email before sign-in
+		requireEmailVerification: false,
 		// Whether users should be able to sign in with a magic link
 		enableMagicLink: true,
 		// Whether users should be able to sign in with a social provider
@@ -77,7 +79,7 @@ export const config = {
 	// Mails
 	mails: {
 		// the from address for mails
-		from: "noreply@supastarter.dev",
+		from: process.env.MAIL_FROM ?? "noreply@supastarter.dev",
 	},
 	// Frontend
 	ui: {

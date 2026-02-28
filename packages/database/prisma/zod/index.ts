@@ -12,9 +12,15 @@ export type TransactionIsolationLevel = z.infer<typeof TransactionIsolationLevel
 
 // File: UserScalarFieldEnum.schema.ts
 
-export const UserScalarFieldEnumSchema = z.enum(['id', 'name', 'email', 'emailVerified', 'image', 'createdAt', 'updatedAt', 'username', 'role', 'banned', 'banReason', 'banExpires', 'onboardingComplete', 'paymentsCustomerId', 'locale', 'displayUsername', 'twoFactorEnabled'])
+export const UserScalarFieldEnumSchema = z.enum(['id', 'name', 'email', 'emailVerified', 'image', 'createdAt', 'updatedAt', 'username', 'role', 'banned', 'banReason', 'banExpires', 'onboardingComplete', 'paymentsCustomerId', 'locale', 'age', 'dateOfBirth', 'phoneNumber', 'city', 'displayUsername', 'twoFactorEnabled'])
 
 export type UserScalarFieldEnum = z.infer<typeof UserScalarFieldEnumSchema>;
+
+// File: ExpenseScalarFieldEnum.schema.ts
+
+export const ExpenseScalarFieldEnumSchema = z.enum(['id', 'userId', 'type', 'amount', 'category', 'notes', 'expenseDate', 'visibility', 'createdAt', 'updatedAt'])
+
+export type ExpenseScalarFieldEnum = z.infer<typeof ExpenseScalarFieldEnumSchema>;
 
 // File: SessionScalarFieldEnum.schema.ts
 
@@ -106,6 +112,18 @@ export const JsonNullValueFilterSchema = z.enum(['DbNull', 'JsonNull', 'AnyNull'
 
 export type JsonNullValueFilter = z.infer<typeof JsonNullValueFilterSchema>;
 
+// File: ExpenseType.schema.ts
+
+export const ExpenseTypeSchema = z.enum(['EXPENSE', 'INCOME'])
+
+export type ExpenseType = z.infer<typeof ExpenseTypeSchema>;
+
+// File: ExpenseVisibility.schema.ts
+
+export const ExpenseVisibilitySchema = z.enum(['PERSONAL', 'SHARED'])
+
+export type ExpenseVisibility = z.infer<typeof ExpenseVisibilitySchema>;
+
 // File: PurchaseType.schema.ts
 
 export const PurchaseTypeSchema = z.enum(['SUBSCRIPTION', 'ONE_TIME'])
@@ -130,12 +148,33 @@ export const UserSchema = z.object({
   onboardingComplete: z.boolean(),
   paymentsCustomerId: z.string().nullish(),
   locale: z.string().nullish(),
+  age: z.number().int().nullish(),
+  dateOfBirth: z.string().nullish(),
+  phoneNumber: z.string().nullish(),
+  city: z.string().nullish(),
   displayUsername: z.string().nullish(),
   twoFactorEnabled: z.boolean().nullish(),
 });
 
 export type UserType = z.infer<typeof UserSchema>;
 
+
+// File: Expense.schema.ts
+
+export const ExpenseSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  type: ExpenseTypeSchema.default("EXPENSE"),
+  amount: z.number().int(),
+  category: z.string(),
+  notes: z.string().nullish(),
+  expenseDate: z.date(),
+  visibility: ExpenseVisibilitySchema.default("PERSONAL"),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type ExpenseModel = z.infer<typeof ExpenseSchema>;
 
 // File: Session.schema.ts
 

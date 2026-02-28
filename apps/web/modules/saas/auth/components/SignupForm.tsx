@@ -98,12 +98,23 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 				}
 
 				router.push(config.auth.redirectAfterSignIn);
+				return;
+			}
+
+			if (
+				config.auth.enablePasswordLogin &&
+				!config.auth.requireEmailVerification
+			) {
+				router.push(redirectPath);
 			}
 		} catch (e) {
 			form.setError("root", {
 				message: getAuthErrorMessage(
 					e && typeof e === "object" && "code" in e
 						? (e.code as string)
+						: undefined,
+					e && typeof e === "object" && "message" in e
+						? String(e.message)
 						: undefined,
 				),
 			});
@@ -119,7 +130,9 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 				{t("auth.signup.message")}
 			</p>
 
-			{form.formState.isSubmitSuccessful && !invitationOnlyMode ? (
+			{form.formState.isSubmitSuccessful &&
+			!invitationOnlyMode &&
+			config.auth.requireEmailVerification ? (
 				<Alert variant="success">
 					<MailboxIcon />
 					<AlertTitle>
