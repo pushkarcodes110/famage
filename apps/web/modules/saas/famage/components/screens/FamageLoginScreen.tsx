@@ -31,7 +31,11 @@ export function FamageLoginScreen() {
 	const { getAuthErrorMessage } = useAuthErrorMessages();
 	const { user, loaded } = useSession();
 
+	const invitationId = searchParams.get("invitationId");
 	const redirectTo = searchParams.get("redirectTo") ?? "/famage";
+	const redirectPath = invitationId
+		? `/organization-invitation/${invitationId}`
+		: redirectTo;
 
 	const form = useForm<LoginFormValues>({
 		resolver: zodResolver(loginFormSchema),
@@ -43,9 +47,9 @@ export function FamageLoginScreen() {
 
 	useEffect(() => {
 		if (loaded && user) {
-			router.replace(redirectTo);
+			router.replace(redirectPath);
 		}
-	}, [loaded, user, redirectTo, router]);
+	}, [loaded, user, redirectPath, router]);
 
 	const onSubmit = form.handleSubmit(async (values) => {
 		const { data, error } = await authClient.signIn.email(values);
@@ -68,7 +72,7 @@ export function FamageLoginScreen() {
 		}
 
 		await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
-		router.replace(redirectTo);
+		router.replace(redirectPath);
 	});
 
 	return (
@@ -77,7 +81,9 @@ export function FamageLoginScreen() {
 				<p className="font-medium text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
 					Welcome back
 				</p>
-				<h1 className="font-semibold text-2xl tracking-tight">Sign in to FAMAGE</h1>
+				<h1 className="font-semibold text-2xl tracking-tight">
+					Sign in to FAMAGE
+				</h1>
 			</header>
 
 			<form className="space-y-4" onSubmit={onSubmit}>
@@ -109,11 +115,14 @@ export function FamageLoginScreen() {
 
 				<div className="space-y-1">
 					<div className="flex items-center justify-between gap-3">
-						<label htmlFor="password" className="font-medium text-xs">
+						<label
+							htmlFor="password"
+							className="font-medium text-xs"
+						>
 							Password
 						</label>
 						<Link
-							href="/auth/forgot-password"
+							href="/famage/auth/forgot-password"
 							className="text-muted-foreground text-xs"
 						>
 							Forgot?

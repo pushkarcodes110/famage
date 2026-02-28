@@ -32,6 +32,21 @@ export default async function proxy(req: NextRequest) {
 		);
 	}
 
+	if (pathname === "/auth/forgot-password") {
+		return NextResponse.redirect(
+			new URL(
+				`/famage/auth/forgot-password${req.nextUrl.search}`,
+				origin,
+			),
+		);
+	}
+
+	if (pathname === "/auth/reset-password") {
+		return NextResponse.redirect(
+			new URL(`/famage/auth/reset-password${req.nextUrl.search}`, origin),
+		);
+	}
+
 	if (pathname.startsWith("/app")) {
 		const response = NextResponse.next();
 

@@ -1,7 +1,7 @@
 import { config } from "@repo/config";
 import { logger } from "@repo/logs";
 import type { mailTemplates } from "../../emails";
-import { send } from "../provider";
+import { activeProviderName, send } from "../provider";
 import type { TemplateId } from "./templates";
 import { getTemplate } from "./templates";
 
@@ -47,15 +47,34 @@ export async function sendEmail<T extends TemplateId>(
 	}
 
 	try {
+		logger.info("Attempting to send email", {
+			provider: activeProviderName,
+			to,
+			subject,
+			templateId: "templateId" in params ? params.templateId : "custom",
+			locale,
+		});
+
 		await send({
 			to,
 			subject,
 			text,
 			html,
 		});
+
+		logger.info("Email send completed", {
+			provider: activeProviderName,
+			to,
+			subject,
+		});
 		return true;
 	} catch (e) {
-		logger.error(e);
+		logger.error("Email send failed", {
+			provider: activeProviderName,
+			to,
+			subject,
+			error: e instanceof Error ? e.message : String(e),
+		});
 		return false;
 	}
 }

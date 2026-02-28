@@ -15,11 +15,15 @@ export function OrganizationInvitationModal({
 	organizationName,
 	organizationSlug,
 	logoUrl,
+	acceptRedirectPath,
+	rejectRedirectPath,
 }: {
 	invitationId: string;
 	organizationName: string;
 	organizationSlug: string;
 	logoUrl?: string;
+	acceptRedirectPath?: string;
+	rejectRedirectPath?: string;
 }) {
 	const t = useTranslations();
 	const router = useRouter();
@@ -45,7 +49,9 @@ export function OrganizationInvitationModal({
 					queryKey: organizationListQueryKey,
 				});
 
-				router.replace(`/app/${organizationSlug}`);
+				router.replace(
+					acceptRedirectPath ?? `/app/${organizationSlug}`,
+				);
 			} else {
 				const { error } =
 					await authClient.organization.rejectInvitation({
@@ -56,7 +62,7 @@ export function OrganizationInvitationModal({
 					throw error;
 				}
 
-				router.replace("/app");
+				router.replace(rejectRedirectPath ?? "/app");
 			}
 		} catch {
 			// TODO: handle error

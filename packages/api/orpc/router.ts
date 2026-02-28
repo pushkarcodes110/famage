@@ -3,6 +3,7 @@ import { adminRouter } from "../modules/admin/router";
 import { aiRouter } from "../modules/ai/router";
 import { contactRouter } from "../modules/contact/router";
 import { expensesRouter } from "../modules/expenses/router";
+import { familyRouter } from "../modules/family/router";
 import { newsletterRouter } from "../modules/newsletter/router";
 import { organizationsRouter } from "../modules/organizations/router";
 import { paymentsRouter } from "../modules/payments/router";
@@ -14,6 +15,7 @@ export const router = publicProcedure.router({
 	newsletter: newsletterRouter,
 	contact: contactRouter,
 	expenses: expensesRouter,
+	family: familyRouter,
 	organizations: organizationsRouter,
 	users: usersRouter,
 	payments: paymentsRouter,
