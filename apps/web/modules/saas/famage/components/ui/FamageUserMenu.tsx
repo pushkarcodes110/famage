@@ -14,6 +14,7 @@ import {
 } from "@ui/components/dropdown-menu";
 import {
 	CircleUserRoundIcon,
+	HouseIcon,
 	LogInIcon,
 	LogOutIcon,
 	UserPenIcon,
@@ -83,6 +84,13 @@ export function FamageUserMenu() {
 							<Link href="/famage/profile">
 								<UserPenIcon className="mr-2 size-4" />
 								Edit profile
+							</Link>
+						</DropdownMenuItem>
+
+						<DropdownMenuItem asChild>
+							<Link href="/famage/family/settings">
+								<HouseIcon className="mr-2 size-4" />
+								Family settings
 							</Link>
 						</DropdownMenuItem>
 

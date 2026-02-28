@@ -15,8 +15,7 @@ export const EXPENSE_TYPE = {
 	income: "income",
 } as const;
 
-export type ExpenseTypeValue =
-	(typeof EXPENSE_TYPE)[keyof typeof EXPENSE_TYPE];
+export type ExpenseTypeValue = (typeof EXPENSE_TYPE)[keyof typeof EXPENSE_TYPE];
 
 export const EXPENSE_VISIBILITY = {
 	personal: "personal",
@@ -25,6 +24,16 @@ export const EXPENSE_VISIBILITY = {
 
 export type ExpenseVisibilityValue =
 	(typeof EXPENSE_VISIBILITY)[keyof typeof EXPENSE_VISIBILITY];
+
+export const SHARED_SPLIT_MODE = {
+	equal: "equal",
+	exact: "exact",
+	percentage: "percentage",
+	shares: "shares",
+} as const;
+
+export type SharedSplitModeValue =
+	(typeof SHARED_SPLIT_MODE)[keyof typeof SHARED_SPLIT_MODE];
 
 export const INCOME_SOURCE = {
 	salary: "salary",
@@ -71,6 +80,27 @@ export const expenseVisibilitySchema = z.enum([
 	EXPENSE_VISIBILITY.shared,
 ]);
 
+export const sharedSplitModeSchema = z.enum([
+	SHARED_SPLIT_MODE.equal,
+	SHARED_SPLIT_MODE.exact,
+	SHARED_SPLIT_MODE.percentage,
+	SHARED_SPLIT_MODE.shares,
+]);
+
+export const sharedExpenseParticipantSchema = z.object({
+	userId: z.string().min(1),
+	shareValue: z.number().int().min(0).optional(),
+});
+
+export const sharedExpenseDetailsSchema = z.object({
+	paidByUserId: z.string().min(1),
+	splitMode: sharedSplitModeSchema.default(SHARED_SPLIT_MODE.equal),
+	excludePayer: z.boolean().default(false),
+	participants: z
+		.array(sharedExpenseParticipantSchema)
+		.min(1, "Select at least one family member"),
+});
+
 export const createExpenseSchema = z.object({
 	amount: z
 		.number()
@@ -82,6 +112,7 @@ export const createExpenseSchema = z.object({
 	expenseDate: z.string().datetime(),
 	visibility: expenseVisibilitySchema,
 	type: expenseTypeSchema.default(EXPENSE_TYPE.expense),
+	sharedDetails: sharedExpenseDetailsSchema.optional(),
 });
 
 export const updateExpenseSchema = z.object({
@@ -96,6 +127,7 @@ export const updateExpenseSchema = z.object({
 	expenseDate: z.string().datetime(),
 	visibility: expenseVisibilitySchema,
 	type: expenseTypeSchema.default(EXPENSE_TYPE.expense),
+	sharedDetails: sharedExpenseDetailsSchema.optional(),
 });
 
 export const getExpenseSchema = z.object({

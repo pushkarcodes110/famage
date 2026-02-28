@@ -1,6 +1,6 @@
 import { BottomNavigation } from "@saas/famage/components/ui/BottomNavigation";
 import { FamageUserMenu } from "@saas/famage/components/ui/FamageUserMenu";
-import { HouseIcon } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import type { PropsWithChildren } from "react";
 
@@ -15,7 +15,13 @@ export function FamageAppShell({ children }: PropsWithChildren) {
 							className="inline-flex items-center gap-2 rounded-full bg-card px-3 py-2 shadow-xs"
 						>
 							<span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-								<HouseIcon className="size-4" />
+								<Image
+									src="/images/famage_logo.svg"
+									alt="Famage logo"
+									width={18}
+									height={18}
+									className="size-[18px] object-contain"
+								/>
 							</span>
 							<span className="font-semibold text-sm tracking-tight">
 								FAMAGE

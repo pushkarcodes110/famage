@@ -1,7 +1,8 @@
 import { ORPCError } from "@orpc/client";
-import { getExpenseByIdForUser } from "@repo/database";
+import { db } from "@repo/database";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { mapExpenseForClient } from "../lib/mappers";
+import { mapSharedSplitModeFromDb } from "../lib/shared-expenses";
 import { getExpenseSchema } from "../types";
 
 export const getExpense = protectedProcedure
@@ -14,9 +15,18 @@ export const getExpense = protectedProcedure
 	})
 	.input(getExpenseSchema)
 	.handler(async ({ input, context: { user } }) => {
-		const expense = await getExpenseByIdForUser({
-			id: input.id,
-			userId: user.id,
+		const expense = await db.expense.findFirst({
+			where: {
+				id: input.id,
+				userId: user.id,
+			},
+			include: {
+				sharedExpense: {
+					include: {
+						participants: true,
+					},
+				},
+			},
 		});
 
 		if (!expense) {
@@ -24,6 +34,28 @@ export const getExpense = protectedProcedure
 		}
 
 		return {
-			expense: mapExpenseForClient(expense),
+			expense: {
+				...mapExpenseForClient(expense),
+				sharedDetails: expense.sharedExpense
+					? {
+							paidByUserId: expense.sharedExpense.paidByUserId,
+							splitMode: mapSharedSplitModeFromDb(
+								expense.sharedExpense.splitMode,
+							),
+							excludePayer: expense.sharedExpense.excludePayer,
+							participants:
+								expense.sharedExpense.participants.map(
+									(participant) => ({
+										userId: participant.userId,
+										shareType: mapSharedSplitModeFromDb(
+											participant.shareType,
+										),
+										shareValue: participant.shareValue,
+										owedAmount: participant.owedAmount,
+									}),
+								),
+						}
+					: null,
+			},
 		};
 	});

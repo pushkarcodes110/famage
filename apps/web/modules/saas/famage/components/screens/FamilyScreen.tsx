@@ -33,7 +33,7 @@ import {
 } from "@ui/components/dialog";
 import { Input } from "@ui/components/input";
 import { cn } from "@ui/lib";
-import { HouseIcon, PlusIcon, UsersIcon } from "lucide-react";
+import { ArrowRightIcon, HouseIcon, PlusIcon, UsersIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -68,12 +68,7 @@ const familyFormSchema = z.object({
 		}),
 });
 
-const inviteMemberFormSchema = z.object({
-	email: z.string().trim().email("Enter a valid email"),
-});
-
 type FamilyFormValues = z.infer<typeof familyFormSchema>;
-type InviteMemberFormValues = z.infer<typeof inviteMemberFormSchema>;
 
 interface BudgetSegment {
 	userId: string;
@@ -84,17 +79,28 @@ interface BudgetSegment {
 	barClassName: string;
 }
 
+interface ExpenseDetail {
+	id: string;
+	amount: number;
+	category: string;
+	notes: string | null;
+	expenseDate: string | Date;
+	createdAt: string | Date;
+	visibility: "personal" | "shared";
+	type: "expense" | "income";
+}
+
 export function FamilyScreen() {
 	const { user, loaded } = useSession();
 	const queryClient = useQueryClient();
 	const [selectedMemberUserId, setSelectedMemberUserId] = useState<
 		string | null
 	>(null);
-	const [isInviteMemberDialogOpen, setIsInviteMemberDialogOpen] =
-		useState(false);
 	const [selectedPeriod, setSelectedPeriod] = useState<
 		"daily" | "weekly" | "monthly"
 	>("monthly");
+	const [selectedExpenseDetail, setSelectedExpenseDetail] =
+		useState<ExpenseDetail | null>(null);
 
 	const familyOverviewQuery = useQuery(
 		user
@@ -119,21 +125,6 @@ export function FamilyScreen() {
 		},
 	});
 
-	const familySettingsForm = useForm<FamilyFormValues>({
-		resolver: zodResolver(familyFormSchema),
-		defaultValues: {
-			name: "",
-			monthlyBudget: "",
-		},
-	});
-
-	const inviteMemberForm = useForm<InviteMemberFormValues>({
-		resolver: zodResolver(inviteMemberFormSchema),
-		defaultValues: {
-			email: "",
-		},
-	});
-
 	const createFamilyMutation = useMutation({
 		...orpc.family.create.mutationOptions(),
 		onSuccess: async () => {
@@ -143,34 +134,6 @@ export function FamilyScreen() {
 		},
 		onError: (error) => {
 			createFamilyForm.setError("root", {
-				message: error.message,
-			});
-		},
-	});
-
-	const updateFamilyMutation = useMutation({
-		...orpc.family.update.mutationOptions(),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries();
-			toast.success("Family details updated");
-		},
-		onError: (error) => {
-			familySettingsForm.setError("root", {
-				message: error.message,
-			});
-		},
-	});
-
-	const inviteMemberMutation = useMutation({
-		...orpc.family.inviteMember.mutationOptions(),
-		onSuccess: async () => {
-			inviteMemberForm.reset();
-			setIsInviteMemberDialogOpen(false);
-			await queryClient.invalidateQueries();
-			toast.success("Invitation sent");
-		},
-		onError: (error) => {
-			inviteMemberForm.setError("root", {
 				message: error.message,
 			});
 		},
@@ -193,20 +156,6 @@ export function FamilyScreen() {
 			return family.members[0]?.userId ?? null;
 		});
 	}, [family?.members]);
-
-	useEffect(() => {
-		if (!family) {
-			return;
-		}
-
-		familySettingsForm.reset({
-			name: family.name,
-			monthlyBudget:
-				typeof family.monthlyBudget === "number"
-					? String(family.monthlyBudget)
-					: "",
-		});
-	}, [family, familySettingsForm]);
 
 	const memberExpensesQuery = useQuery(
 		orpc.family.memberExpenses.queryOptions({
@@ -293,22 +242,6 @@ export function FamilyScreen() {
 				values.monthlyBudget === ""
 					? undefined
 					: Number.parseInt(values.monthlyBudget, 10),
-		});
-	});
-
-	const onSubmitFamilySettings = familySettingsForm.handleSubmit((values) => {
-		updateFamilyMutation.mutate({
-			name: values.name,
-			monthlyBudget:
-				values.monthlyBudget === ""
-					? undefined
-					: Number.parseInt(values.monthlyBudget, 10),
-		});
-	});
-
-	const onSubmitInviteMember = inviteMemberForm.handleSubmit((values) => {
-		inviteMemberMutation.mutate({
-			email: values.email,
 		});
 	});
 
@@ -489,14 +422,14 @@ export function FamilyScreen() {
 								size="icon"
 								variant="outline"
 								className="size-8 rounded-full border-primary/40 bg-card/80"
-								onClick={() =>
-									setIsInviteMemberDialogOpen(true)
-								}
+								asChild
 							>
-								<PlusIcon className="size-4" />
-								<span className="sr-only">
-									Invite family member
-								</span>
+								<Link href="/famage/family/settings?focus=add-member">
+									<PlusIcon className="size-4" />
+									<span className="sr-only">
+										Invite family member
+									</span>
+								</Link>
 							</Button>
 						) : null}
 					</div>
@@ -591,152 +524,6 @@ export function FamilyScreen() {
 				</CardContent>
 			</Card>
 
-			{family?.canManageInvites ? (
-				<Card>
-					<CardHeader>
-						<CardTitle className="text-base">
-							Family settings
-						</CardTitle>
-						<CardDescription>
-							Update family name and monthly budget.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="pt-0">
-						<form
-							className="space-y-3"
-							onSubmit={onSubmitFamilySettings}
-						>
-							<div className="space-y-1">
-								<label
-									htmlFor="settings-family-name"
-									className="font-medium text-xs"
-								>
-									Family name
-								</label>
-								<Input
-									id="settings-family-name"
-									type="text"
-									{...familySettingsForm.register("name")}
-								/>
-								{familySettingsForm.formState.errors.name ? (
-									<p className="text-destructive text-xs">
-										{
-											familySettingsForm.formState.errors
-												.name.message
-										}
-									</p>
-								) : null}
-							</div>
-
-							<div className="space-y-1">
-								<label
-									htmlFor="settings-monthly-budget"
-									className="font-medium text-xs"
-								>
-									Monthly budget
-								</label>
-								<Input
-									id="settings-monthly-budget"
-									inputMode="numeric"
-									placeholder="Ex: 50000"
-									{...familySettingsForm.register(
-										"monthlyBudget",
-									)}
-								/>
-								{familySettingsForm.formState.errors
-									.monthlyBudget ? (
-									<p className="text-destructive text-xs">
-										{
-											familySettingsForm.formState.errors
-												.monthlyBudget.message
-										}
-									</p>
-								) : null}
-							</div>
-
-							{familySettingsForm.formState.errors.root
-								?.message ? (
-								<p className="text-destructive text-xs">
-									{
-										familySettingsForm.formState.errors.root
-											.message
-									}
-								</p>
-							) : null}
-
-							<Button
-								type="submit"
-								className="w-full"
-								loading={updateFamilyMutation.isPending}
-							>
-								Save family details
-							</Button>
-						</form>
-					</CardContent>
-				</Card>
-			) : null}
-
-			{family?.canManageInvites ? (
-				<Dialog
-					open={isInviteMemberDialogOpen}
-					onOpenChange={setIsInviteMemberDialogOpen}
-				>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>Invite family member</DialogTitle>
-							<DialogDescription>
-								Only existing app users can be invited.
-							</DialogDescription>
-						</DialogHeader>
-
-						<form
-							className="space-y-3"
-							onSubmit={onSubmitInviteMember}
-						>
-							<div className="space-y-1">
-								<label
-									htmlFor="invite-email"
-									className="font-medium text-xs"
-								>
-									Email
-								</label>
-								<Input
-									id="invite-email"
-									type="email"
-									placeholder="member@example.com"
-									{...inviteMemberForm.register("email")}
-								/>
-								{inviteMemberForm.formState.errors.email ? (
-									<p className="text-destructive text-xs">
-										{
-											inviteMemberForm.formState.errors
-												.email.message
-										}
-									</p>
-								) : null}
-							</div>
-
-							{inviteMemberForm.formState.errors.root?.message ? (
-								<p className="text-destructive text-xs">
-									{
-										inviteMemberForm.formState.errors.root
-											.message
-									}
-								</p>
-							) : null}
-
-							<Button
-								type="submit"
-								className="w-full"
-								loading={inviteMemberMutation.isPending}
-							>
-								Send invite
-							</Button>
-						</form>
-					</DialogContent>
-				</Dialog>
-			) : null}
-
 			{family?.pendingInvitations.length ? (
 				<Card>
 					<CardHeader>
@@ -800,7 +587,9 @@ export function FamilyScreen() {
 									</Avatar>
 									<div>
 										<p className="font-medium text-sm">
-											{member.name}
+											{member.userId === user?.id
+												? "You"
+												: member.name}
 										</p>
 										<p className="text-muted-foreground text-xs">
 											{member.role}
@@ -945,33 +734,44 @@ export function FamilyScreen() {
 								{memberExpensesQuery.data.expenses
 									.slice(0, 8)
 									.map((expense) => (
-										<li
-											key={expense.id}
-											className="rounded-2xl border bg-card p-3"
-										>
-											<div className="flex items-center justify-between">
-												<p className="font-medium text-sm">
-													{getTransactionCategoryLabel(
-														expense.category,
+										<li key={expense.id}>
+											<button
+												type="button"
+												onClick={() =>
+													setSelectedExpenseDetail(
+														expense,
+													)
+												}
+												className="w-full rounded-2xl border bg-card p-3 text-left"
+											>
+												<div className="flex items-center justify-between">
+													<p className="font-medium text-sm">
+														{getTransactionCategoryLabel(
+															expense.category,
+														)}
+													</p>
+													<p className="font-semibold text-sm">
+														{formatCurrency(
+															expense.amount,
+														)}
+													</p>
+												</div>
+												<p className="mt-1 text-muted-foreground text-xs">
+													{new Date(
+														expense.expenseDate,
+													).toLocaleDateString(
+														"en-IN",
+														{
+															month: "short",
+															day: "numeric",
+														},
 													)}
+													{expense.visibility ===
+													"shared"
+														? " • Shared"
+														: " • Personal"}
 												</p>
-												<p className="font-semibold text-sm">
-													{formatCurrency(
-														expense.amount,
-													)}
-												</p>
-											</div>
-											<p className="mt-1 text-muted-foreground text-xs">
-												{new Date(
-													expense.expenseDate,
-												).toLocaleDateString("en-IN", {
-													month: "short",
-													day: "numeric",
-												})}
-												{expense.visibility === "shared"
-													? " • Shared"
-													: " • Personal"}
-											</p>
+											</button>
 										</li>
 									))}
 							</ul>
@@ -1023,6 +823,39 @@ export function FamilyScreen() {
 									})}
 									• Shared
 								</p>
+								{expense.settlements?.length ? (
+									<ul className="mt-2 space-y-1.5">
+										{expense.settlements.map(
+											(settlement) => (
+												<li
+													key={settlement.id}
+													className="flex items-center justify-between rounded-lg bg-muted/60 px-2.5 py-2 text-xs"
+												>
+													<div className="flex items-center gap-1">
+														<span className="font-medium">
+															{settlement.fromUserId ===
+															user?.id
+																? "You"
+																: settlement.fromUserName}
+														</span>
+														<ArrowRightIcon className="size-3 text-muted-foreground" />
+														<span className="font-medium">
+															{settlement.toUserId ===
+															user?.id
+																? "You"
+																: settlement.toUserName}
+														</span>
+													</div>
+													<span className="font-semibold">
+														{formatCurrency(
+															settlement.amount,
+														)}
+													</span>
+												</li>
+											),
+										)}
+									</ul>
+								) : null}
 							</li>
 						))}
 					</ul>
@@ -1040,6 +873,101 @@ export function FamilyScreen() {
 					</Card>
 				)}
 			</div>
+
+			<Dialog
+				open={Boolean(selectedExpenseDetail)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setSelectedExpenseDetail(null);
+					}
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Expense details</DialogTitle>
+						<DialogDescription>
+							View full information for this transaction.
+						</DialogDescription>
+					</DialogHeader>
+
+					{selectedExpenseDetail ? (
+						<div className="space-y-3">
+							<div className="rounded-xl border bg-card px-3 py-2">
+								<p className="text-[11px] text-muted-foreground">
+									Amount
+								</p>
+								<p className="font-semibold text-base">
+									{formatCurrency(
+										selectedExpenseDetail.amount,
+									)}
+								</p>
+							</div>
+
+							<div className="grid grid-cols-2 gap-2 text-xs">
+								<div className="rounded-xl border bg-card px-3 py-2">
+									<p className="text-muted-foreground">
+										Category
+									</p>
+									<p className="mt-1 font-medium">
+										{getTransactionCategoryLabel(
+											selectedExpenseDetail.category,
+										)}
+									</p>
+								</div>
+								<div className="rounded-xl border bg-card px-3 py-2">
+									<p className="text-muted-foreground">
+										Visibility
+									</p>
+									<p className="mt-1 font-medium capitalize">
+										{selectedExpenseDetail.visibility}
+									</p>
+								</div>
+								<div className="rounded-xl border bg-card px-3 py-2">
+									<p className="text-muted-foreground">
+										Expense date
+									</p>
+									<p className="mt-1 font-medium">
+										{new Date(
+											selectedExpenseDetail.expenseDate,
+										).toLocaleDateString("en-IN", {
+											year: "numeric",
+											month: "short",
+											day: "numeric",
+										})}
+									</p>
+								</div>
+								<div className="rounded-xl border bg-card px-3 py-2">
+									<p className="text-muted-foreground">
+										Added on
+									</p>
+									<p className="mt-1 font-medium">
+										{new Date(
+											selectedExpenseDetail.createdAt,
+										).toLocaleString("en-IN", {
+											year: "numeric",
+											month: "short",
+											day: "numeric",
+											hour: "2-digit",
+											minute: "2-digit",
+										})}
+									</p>
+								</div>
+							</div>
+
+							<div className="rounded-xl border bg-card px-3 py-2">
+								<p className="text-[11px] text-muted-foreground">
+									Description
+								</p>
+								<p className="mt-1 text-sm">
+									{selectedExpenseDetail.notes?.trim()
+										? selectedExpenseDetail.notes
+										: "No description added"}
+								</p>
+							</div>
+						</div>
+					) : null}
+				</DialogContent>
+			</Dialog>
 		</section>
 	);
 }

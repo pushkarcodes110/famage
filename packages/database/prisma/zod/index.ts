@@ -58,6 +58,24 @@ export const OrganizationScalarFieldEnumSchema = z.enum(['id', 'name', 'slug', '
 
 export type OrganizationScalarFieldEnum = z.infer<typeof OrganizationScalarFieldEnumSchema>;
 
+// File: SharedExpenseScalarFieldEnum.schema.ts
+
+export const SharedExpenseScalarFieldEnumSchema = z.enum(['id', 'expenseId', 'organizationId', 'paidByUserId', 'splitMode', 'excludePayer', 'createdByUserId', 'createdAt', 'updatedAt'])
+
+export type SharedExpenseScalarFieldEnum = z.infer<typeof SharedExpenseScalarFieldEnumSchema>;
+
+// File: SharedExpenseParticipantScalarFieldEnum.schema.ts
+
+export const SharedExpenseParticipantScalarFieldEnumSchema = z.enum(['id', 'sharedExpenseId', 'userId', 'shareType', 'shareValue', 'owedAmount', 'createdAt'])
+
+export type SharedExpenseParticipantScalarFieldEnum = z.infer<typeof SharedExpenseParticipantScalarFieldEnumSchema>;
+
+// File: SharedSettlementScalarFieldEnum.schema.ts
+
+export const SharedSettlementScalarFieldEnumSchema = z.enum(['id', 'organizationId', 'fromUserId', 'toUserId', 'amount', 'status', 'settledAt', 'sourceSharedExpenseId', 'note', 'createdAt', 'updatedAt'])
+
+export type SharedSettlementScalarFieldEnum = z.infer<typeof SharedSettlementScalarFieldEnumSchema>;
+
 // File: MemberScalarFieldEnum.schema.ts
 
 export const MemberScalarFieldEnumSchema = z.enum(['id', 'organizationId', 'userId', 'role', 'createdAt'])
@@ -123,6 +141,24 @@ export type ExpenseType = z.infer<typeof ExpenseTypeSchema>;
 export const ExpenseVisibilitySchema = z.enum(['PERSONAL', 'SHARED'])
 
 export type ExpenseVisibility = z.infer<typeof ExpenseVisibilitySchema>;
+
+// File: SharedSplitMode.schema.ts
+
+export const SharedSplitModeSchema = z.enum(['EQUAL', 'EXACT', 'PERCENTAGE', 'SHARES'])
+
+export type SharedSplitMode = z.infer<typeof SharedSplitModeSchema>;
+
+// File: SharedSplitShareType.schema.ts
+
+export const SharedSplitShareTypeSchema = z.enum(['EQUAL', 'EXACT', 'PERCENTAGE', 'SHARES'])
+
+export type SharedSplitShareType = z.infer<typeof SharedSplitShareTypeSchema>;
+
+// File: SharedSettlementStatus.schema.ts
+
+export const SharedSettlementStatusSchema = z.enum(['PENDING', 'SETTLED'])
+
+export type SharedSettlementStatus = z.infer<typeof SharedSettlementStatusSchema>;
 
 // File: PurchaseType.schema.ts
 
@@ -274,6 +310,57 @@ export const OrganizationSchema = z.object({
 });
 
 export type OrganizationType = z.infer<typeof OrganizationSchema>;
+
+
+// File: SharedExpense.schema.ts
+
+export const SharedExpenseSchema = z.object({
+  id: z.string(),
+  expenseId: z.string(),
+  organizationId: z.string(),
+  paidByUserId: z.string(),
+  splitMode: SharedSplitModeSchema.default("EQUAL"),
+  excludePayer: z.boolean(),
+  createdByUserId: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type SharedExpenseType = z.infer<typeof SharedExpenseSchema>;
+
+
+// File: SharedExpenseParticipant.schema.ts
+
+export const SharedExpenseParticipantSchema = z.object({
+  id: z.string(),
+  sharedExpenseId: z.string(),
+  userId: z.string(),
+  shareType: SharedSplitShareTypeSchema.default("EQUAL"),
+  shareValue: z.number().int().nullish(),
+  owedAmount: z.number().int(),
+  createdAt: z.date(),
+});
+
+export type SharedExpenseParticipantType = z.infer<typeof SharedExpenseParticipantSchema>;
+
+
+// File: SharedSettlement.schema.ts
+
+export const SharedSettlementSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  fromUserId: z.string(),
+  toUserId: z.string(),
+  amount: z.number().int(),
+  status: SharedSettlementStatusSchema.default("PENDING"),
+  settledAt: z.date().nullish(),
+  sourceSharedExpenseId: z.string().nullish(),
+  note: z.string().nullish(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type SharedSettlementType = z.infer<typeof SharedSettlementSchema>;
 
 
 // File: Member.schema.ts

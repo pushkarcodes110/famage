@@ -89,6 +89,31 @@ export const getFamilyOverview = protectedProcedure
 					type: "EXPENSE",
 					visibility: "SHARED",
 				},
+				include: {
+					sharedExpense: {
+						include: {
+							settlements: {
+								where: {
+									status: "PENDING",
+								},
+								include: {
+									fromUser: {
+										select: {
+											id: true,
+											name: true,
+										},
+									},
+									toUser: {
+										select: {
+											id: true,
+											name: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 				orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
 				take: 5,
 			}),
@@ -136,13 +161,25 @@ export const getFamilyOverview = protectedProcedure
 							createdAt: invitation.createdAt,
 						}),
 					),
-				sharedExpenses: sharedExpenses.map((expense) =>
-					mapExpenseForClient(expense),
-				),
+				sharedExpenses: sharedExpenses.map((expense) => ({
+					...mapExpenseForClient(expense),
+					settlements:
+						expense.sharedExpense?.settlements.map(
+							(settlement) => ({
+								id: settlement.id,
+								amount: settlement.amount,
+								fromUserId: settlement.fromUserId,
+								fromUserName: settlement.fromUser.name,
+								toUserId: settlement.toUserId,
+								toUserName: settlement.toUser.name,
+							}),
+						) ?? [],
+				})),
 				totalMonthlySpend,
 				canManageInvites: ["owner", "admin"].includes(
 					familyMembership.role,
 				),
+				canManageSettings: familyMembership.role === "owner",
 			},
 		};
 	});

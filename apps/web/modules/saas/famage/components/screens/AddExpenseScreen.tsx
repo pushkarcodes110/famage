@@ -3,19 +3,19 @@
 import {
 	EXPENSE_TYPE,
 	type ExpenseTypeValue,
+	SHARED_SPLIT_MODE,
 } from "@repo/api/modules/expenses/types";
 import { useSession } from "@saas/auth/hooks/use-session";
 import {
 	EXPENSE_CATEGORY,
-	INCOME_SOURCE,
 	EXPENSE_VISIBILITY,
-	formatCurrency,
-	type TransactionCategoryKey,
 	type ExpenseVisibility,
 	expenseCategories,
-	incomeSources,
-	familyMembers,
+	formatCurrency,
 	getInitials,
+	INCOME_SOURCE,
+	incomeSources,
+	type TransactionCategoryKey,
 } from "@saas/famage/lib/mock-data";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import {
@@ -36,14 +36,17 @@ import {
 import { Input } from "@ui/components/input";
 import { Textarea } from "@ui/components/textarea";
 import { cn } from "@ui/lib";
+import type { LucideIcon } from "lucide-react";
 import {
 	ArrowDownCircleIcon,
+	ArrowRightIcon,
 	ArrowUpCircleIcon,
 	BadgeDollarSignIcon,
 	BookOpenIcon,
 	BriefcaseBusinessIcon,
 	BusIcon,
 	CheckCircle2Icon,
+	CircleIcon,
 	CoinsIcon,
 	GiftIcon,
 	HeartPulseIcon,
@@ -52,11 +55,10 @@ import {
 	ShoppingBasketIcon,
 	TvIcon,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { withQuery } from "ufo";
 
@@ -132,6 +134,11 @@ export function AddExpenseScreen() {
 	const [visibility, setVisibility] = useState<ExpenseVisibility>(
 		EXPENSE_VISIBILITY.personal,
 	);
+	const [sharedPaidByUserId, setSharedPaidByUserId] = useState<string | null>(
+		null,
+	);
+	const [selectedSharedMemberUserIds, setSelectedSharedMemberUserIds] =
+		useState<string[]>([]);
 
 	const expenseQuery = useQuery(
 		orpc.expenses.find.queryOptions({
@@ -142,6 +149,18 @@ export function AddExpenseScreen() {
 						}
 					: skipToken,
 		}),
+	);
+	const familyOverviewQuery = useQuery(
+		user
+			? {
+					...orpc.family.overview.queryOptions(),
+					enabled: true,
+				}
+			: {
+					queryKey: ["family", "overview", "guest"],
+					queryFn: async () => ({ family: null }),
+					enabled: false,
+				},
 	);
 
 	const createExpenseMutation = useMutation(
@@ -156,8 +175,66 @@ export function AddExpenseScreen() {
 	const ModeIcon = isIncome ? ArrowUpCircleIcon : ArrowDownCircleIcon;
 	const categoryOptions = isIncome ? incomeSources : expenseCategories;
 	const parsedAmount = Number(amount);
-	const isSaving = createExpenseMutation.isPending || updateExpenseMutation.isPending;
+	const isSaving =
+		createExpenseMutation.isPending || updateExpenseMutation.isPending;
 	const isEditingExpenseLoading = isEditing && expenseQuery.isPending;
+	const family = familyOverviewQuery.data?.family ?? null;
+	const familyMemberOptions = family?.members ?? [];
+	const familyMemberNameByUserId = useMemo(
+		() =>
+			new Map(
+				familyMemberOptions.map((member) => [
+					member.userId,
+					member.name,
+				]),
+			),
+		[familyMemberOptions],
+	);
+
+	const sharedPreviewRows = useMemo(() => {
+		if (
+			!isShared ||
+			!sharedPaidByUserId ||
+			selectedSharedMemberUserIds.length === 0 ||
+			!Number.isInteger(parsedAmount) ||
+			parsedAmount <= 0
+		) {
+			return [];
+		}
+
+		const baseAmount = Math.floor(
+			parsedAmount / selectedSharedMemberUserIds.length,
+		);
+		const remainder = parsedAmount % selectedSharedMemberUserIds.length;
+		const participantAmounts = selectedSharedMemberUserIds.map(
+			(userId, index) => ({
+				userId,
+				owedAmount: baseAmount + (index < remainder ? 1 : 0),
+			}),
+		);
+
+		return participantAmounts
+			.filter(
+				(participantAmount) =>
+					participantAmount.userId !== sharedPaidByUserId &&
+					participantAmount.owedAmount > 0,
+			)
+			.map((participantAmount) => ({
+				fromLabel:
+					familyMemberNameByUserId.get(participantAmount.userId) ??
+					participantAmount.userId,
+				toLabel:
+					familyMemberNameByUserId.get(sharedPaidByUserId) ??
+					sharedPaidByUserId,
+				amount: participantAmount.owedAmount,
+			}));
+	}, [
+		familyMemberNameByUserId,
+		isShared,
+		parsedAmount,
+		selectedSharedMemberUserIds,
+		sharedPaidByUserId,
+	]);
 	const modeAuraClass = isIncome
 		? "from-success/30 via-success/10 to-transparent"
 		: "from-destructive/30 via-destructive/10 to-transparent";
@@ -170,7 +247,9 @@ export function AddExpenseScreen() {
 	const modeSelectedCategoryClass = isIncome
 		? "border-success/40 bg-success/10"
 		: "border-destructive/40 bg-destructive/10";
-	const modeSelectedIconClass = isIncome ? "text-success" : "text-destructive";
+	const modeSelectedIconClass = isIncome
+		? "text-success"
+		: "text-destructive";
 	const modeSubmitButtonClass = isIncome
 		? "bg-success text-white hover:bg-success/90"
 		: "bg-destructive text-white hover:bg-destructive/90";
@@ -185,14 +264,20 @@ export function AddExpenseScreen() {
 
 	useEffect(() => {
 		if (isIncome) {
-			if (!incomeSources.some((source) => source.key === selectedCategory)) {
+			if (
+				!incomeSources.some((source) => source.key === selectedCategory)
+			) {
 				setSelectedCategory(INCOME_SOURCE.salary);
 			}
 			setVisibility(EXPENSE_VISIBILITY.personal);
 			return;
 		}
 
-		if (!expenseCategories.some((category) => category.key === selectedCategory)) {
+		if (
+			!expenseCategories.some(
+				(category) => category.key === selectedCategory,
+			)
+		) {
 			setSelectedCategory(EXPENSE_CATEGORY.groceries);
 		}
 	}, [isIncome, selectedCategory]);
@@ -208,8 +293,60 @@ export function AddExpenseScreen() {
 		setSelectedCategory(expense.category as TransactionCategoryKey);
 		setNotes(expense.notes ?? "");
 		setVisibility(expense.visibility as ExpenseVisibility);
-		setSelectedDate(new Date(expense.expenseDate).toISOString().slice(0, 10));
+		setSelectedDate(
+			new Date(expense.expenseDate).toISOString().slice(0, 10),
+		);
+		if (expense.sharedDetails) {
+			setSharedPaidByUserId(expense.sharedDetails.paidByUserId);
+			setSelectedSharedMemberUserIds(
+				expense.sharedDetails.participants.map(
+					(participant: { userId: string }) => participant.userId,
+				),
+			);
+		}
 	}, [expenseQuery.data?.expense]);
+
+	useEffect(() => {
+		if (!familyMemberOptions.length) {
+			setSelectedSharedMemberUserIds([]);
+			setSharedPaidByUserId(null);
+			return;
+		}
+
+		setSelectedSharedMemberUserIds((currentValue) => {
+			const validCurrentMembers = currentValue.filter((memberId) =>
+				familyMemberOptions.some(
+					(member) => member.userId === memberId,
+				),
+			);
+
+			if (validCurrentMembers.length > 0) {
+				return validCurrentMembers;
+			}
+
+			return familyMemberOptions.map((member) => member.userId);
+		});
+
+		setSharedPaidByUserId((currentValue) => {
+			if (
+				currentValue &&
+				familyMemberOptions.some(
+					(member) => member.userId === currentValue,
+				)
+			) {
+				return currentValue;
+			}
+
+			if (
+				user?.id &&
+				familyMemberOptions.some((member) => member.userId === user.id)
+			) {
+				return user.id;
+			}
+
+			return familyMemberOptions[0]?.userId ?? null;
+		});
+	}, [familyMemberOptions, user?.id]);
 
 	const redirectToLoginHref = useMemo(() => {
 		const currentPath = withQuery("/famage/add-expense", {
@@ -240,10 +377,30 @@ export function AddExpenseScreen() {
 			amount: parsedAmount,
 			category: selectedCategory,
 			notes: notes.trim() || undefined,
-			expenseDate: new Date(`${selectedDate}T12:00:00.000Z`).toISOString(),
+			expenseDate: new Date(
+				`${selectedDate}T12:00:00.000Z`,
+			).toISOString(),
 			visibility: isIncome ? EXPENSE_VISIBILITY.personal : visibility,
 			type: entryType,
+			sharedDetails:
+				!isIncome && isShared
+					? {
+							paidByUserId: sharedPaidByUserId ?? user.id,
+							splitMode: SHARED_SPLIT_MODE.equal,
+							excludePayer: false,
+							participants: selectedSharedMemberUserIds.map(
+								(userId) => ({
+									userId,
+								}),
+							),
+						}
+					: undefined,
 		} as const;
+
+		if (isShared && payload.sharedDetails?.participants.length === 0) {
+			toast.error("Select at least one family member for shared split");
+			return;
+		}
 
 		try {
 			if (isEditing && expenseId) {
@@ -302,7 +459,12 @@ export function AddExpenseScreen() {
 				</h1>
 			</header>
 
-			<Card className={cn("relative transition-colors duration-300", modeHighlightCardClass)}>
+			<Card
+				className={cn(
+					"relative transition-colors duration-300",
+					modeHighlightCardClass,
+				)}
+			>
 				<CardContent className="flex items-center justify-between p-4">
 					<div className="space-y-1">
 						<p className="font-medium text-xs uppercase tracking-[0.16em] text-muted-foreground">
@@ -318,7 +480,9 @@ export function AddExpenseScreen() {
 					<span
 						className={cn(
 							"inline-flex size-10 items-center justify-center rounded-xl border bg-card/90 transition-colors duration-300",
-							isIncome ? "border-success/40 text-success" : "border-destructive/40 text-destructive",
+							isIncome
+								? "border-success/40 text-success"
+								: "border-destructive/40 text-destructive",
 						)}
 					>
 						<ModeIcon className="size-5 motion-safe:animate-pulse" />
@@ -329,8 +493,14 @@ export function AddExpenseScreen() {
 			{loaded && !user ? (
 				<Card className="border-dashed bg-card/70">
 					<CardContent className="space-y-3 p-4 text-center">
-						<p className="font-medium text-sm">Sign in to save expenses</p>
-						<Button asChild variant="outline" className="h-10 rounded-xl">
+						<p className="font-medium text-sm">
+							Sign in to save expenses
+						</p>
+						<Button
+							asChild
+							variant="outline"
+							className="h-10 rounded-xl"
+						>
 							<Link href={redirectToLoginHref}>Sign in</Link>
 						</Button>
 					</CardContent>
@@ -338,11 +508,17 @@ export function AddExpenseScreen() {
 			) : null}
 
 			<form className="space-y-4" onSubmit={handleSaveExpense}>
-				<Card className={cn("transition-colors duration-300", modeSecondaryCardClass)}>
+				<Card
+					className={cn(
+						"transition-colors duration-300",
+						modeSecondaryCardClass,
+					)}
+				>
 					<CardHeader className="pb-2">
 						<CardTitle className="text-lg">Type</CardTitle>
 						<CardDescription>
-							Choose whether this is outgoing expense or incoming credit.
+							Choose whether this is outgoing expense or incoming
+							credit.
 						</CardDescription>
 					</CardHeader>
 
@@ -362,7 +538,8 @@ export function AddExpenseScreen() {
 									className={cn(
 										"min-h-10 rounded-xl px-3 font-medium text-sm transition-colors duration-300",
 										entryType === option.value
-											? option.value === EXPENSE_TYPE.income
+											? option.value ===
+												EXPENSE_TYPE.income
 												? "bg-success/15 text-success shadow-xs"
 												: "bg-destructive/15 text-destructive shadow-xs"
 											: "text-muted-foreground",
@@ -375,7 +552,12 @@ export function AddExpenseScreen() {
 					</CardContent>
 				</Card>
 
-				<Card className={cn("transition-colors duration-300", modeHighlightCardClass)}>
+				<Card
+					className={cn(
+						"transition-colors duration-300",
+						modeHighlightCardClass,
+					)}
+				>
 					<CardHeader className="pb-2">
 						<CardTitle className="text-lg">
 							{isIncome ? "Credit amount" : "Amount"}
@@ -401,12 +583,20 @@ export function AddExpenseScreen() {
 							)}
 						/>
 						<p className="text-center text-muted-foreground text-xs">
-							Preview: {Number.isNaN(parsedAmount) ? "₹0" : formatCurrency(parsedAmount)}
+							Preview:{" "}
+							{Number.isNaN(parsedAmount)
+								? "₹0"
+								: formatCurrency(parsedAmount)}
 						</p>
 					</CardContent>
 				</Card>
 
-				<Card className={cn("transition-colors duration-300", modeSecondaryCardClass)}>
+				<Card
+					className={cn(
+						"transition-colors duration-300",
+						modeSecondaryCardClass,
+					)}
+				>
 					<CardHeader className="pb-2">
 						<CardTitle className="text-lg">
 							{isIncome ? "Credit source" : "Category"}
@@ -417,13 +607,16 @@ export function AddExpenseScreen() {
 						<div className="grid grid-cols-2 gap-2">
 							{categoryOptions.map((category) => {
 								const Icon = categoryIcons[category.key];
-								const isSelected = selectedCategory === category.key;
+								const isSelected =
+									selectedCategory === category.key;
 
 								return (
 									<button
 										key={category.key}
 										type="button"
-										onClick={() => setSelectedCategory(category.key)}
+										onClick={() =>
+											setSelectedCategory(category.key)
+										}
 										className={cn(
 											"flex min-h-11 items-center gap-2 rounded-xl border p-3 text-left transition-colors duration-300",
 											isSelected
@@ -434,10 +627,14 @@ export function AddExpenseScreen() {
 										<Icon
 											className={cn(
 												"size-4 transition-colors duration-300",
-												isSelected ? modeSelectedIconClass : "text-primary",
+												isSelected
+													? modeSelectedIconClass
+													: "text-primary",
 											)}
 										/>
-										<span className="font-medium text-sm">{category.label}</span>
+										<span className="font-medium text-sm">
+											{category.label}
+										</span>
 									</button>
 								);
 							})}
@@ -445,7 +642,12 @@ export function AddExpenseScreen() {
 					</CardContent>
 				</Card>
 
-				<Card className={cn("transition-colors duration-300", modeSecondaryCardClass)}>
+				<Card
+					className={cn(
+						"transition-colors duration-300",
+						modeSecondaryCardClass,
+					)}
+				>
 					<CardHeader className="pb-2">
 						<CardTitle className="text-lg">Details</CardTitle>
 					</CardHeader>
@@ -461,7 +663,9 @@ export function AddExpenseScreen() {
 						<Input
 							type="date"
 							value={selectedDate}
-							onChange={(event) => setSelectedDate(event.target.value)}
+							onChange={(event) =>
+								setSelectedDate(event.target.value)
+							}
 							className="h-11"
 						/>
 					</CardContent>
@@ -470,7 +674,9 @@ export function AddExpenseScreen() {
 				{!isIncome ? (
 					<Card className="border-destructive/20 bg-destructive/5 transition-colors duration-300">
 						<CardHeader className="pb-2">
-							<CardTitle className="text-lg">Visibility</CardTitle>
+							<CardTitle className="text-lg">
+								Visibility
+							</CardTitle>
 						</CardHeader>
 
 						<CardContent className="space-y-3">
@@ -484,8 +690,12 @@ export function AddExpenseScreen() {
 										key={option.value}
 										type="button"
 										role="tab"
-										aria-selected={visibility === option.value}
-										onClick={() => setVisibility(option.value)}
+										aria-selected={
+											visibility === option.value
+										}
+										onClick={() =>
+											setVisibility(option.value)
+										}
 										className={cn(
 											"min-h-10 rounded-xl px-3 font-medium text-sm transition-colors duration-300",
 											visibility === option.value
@@ -501,34 +711,159 @@ export function AddExpenseScreen() {
 							{isShared ? (
 								<div className="space-y-3 rounded-2xl border bg-muted/40 p-3">
 									<div className="flex items-center justify-between">
-										<p className="font-medium text-sm">Family members</p>
-										<p className="text-muted-foreground text-xs">Split equally</p>
+										<p className="font-medium text-sm">
+											Family members
+										</p>
+										<p className="text-muted-foreground text-xs">
+											Split equally
+										</p>
 									</div>
-
-									<ul className="space-y-2">
-										{familyMembers.map((member) => (
-											<li
-												key={member.id}
-												className="flex items-center justify-between rounded-xl bg-card px-3 py-2"
-											>
-												<div className="flex items-center gap-2">
-													<Avatar className="size-8 rounded-full">
-														<AvatarFallback
-															className={cn(
-																"rounded-full font-semibold text-[11px]",
-																member.avatarClassName,
-															)}
-														>
-															{getInitials(member.name)}
-														</AvatarFallback>
-													</Avatar>
-													<span className="font-medium text-sm">{member.name}</span>
+									{familyMemberOptions.length > 0 ? (
+										<>
+											<div className="space-y-2">
+												<p className="text-muted-foreground text-xs">
+													Paid by
+												</p>
+												<div className="flex flex-wrap gap-2">
+													{familyMemberOptions.map(
+														(member) => (
+															<button
+																key={
+																	member.userId
+																}
+																type="button"
+																onClick={() =>
+																	setSharedPaidByUserId(
+																		member.userId,
+																	)
+																}
+																className={cn(
+																	"rounded-full border px-3 py-1.5 font-medium text-xs",
+																	sharedPaidByUserId ===
+																		member.userId
+																		? "border-primary bg-primary/10 text-foreground"
+																		: "bg-card text-muted-foreground",
+																)}
+															>
+																{member.name}
+															</button>
+														),
+													)}
 												</div>
+											</div>
 
-												<CheckCircle2Icon className="size-4 text-success" />
-											</li>
-										))}
-									</ul>
+											<ul className="space-y-2">
+												{familyMemberOptions.map(
+													(member) => {
+														const isSelected =
+															selectedSharedMemberUserIds.includes(
+																member.userId,
+															);
+
+														return (
+															<li
+																key={
+																	member.userId
+																}
+															>
+																<button
+																	type="button"
+																	onClick={() =>
+																		setSelectedSharedMemberUserIds(
+																			(
+																				currentValue,
+																			) =>
+																				isSelected
+																					? currentValue.filter(
+																							(
+																								memberUserId,
+																							) =>
+																								memberUserId !==
+																								member.userId,
+																						)
+																					: [
+																							...currentValue,
+																							member.userId,
+																						],
+																		)
+																	}
+																	className="flex w-full items-center justify-between rounded-xl bg-card px-3 py-2 text-left"
+																>
+																	<div className="flex items-center gap-2">
+																		<Avatar className="size-8 rounded-full">
+																			<AvatarFallback className="rounded-full font-semibold text-[11px]">
+																				{getInitials(
+																					member.name,
+																				)}
+																			</AvatarFallback>
+																		</Avatar>
+																		<span className="font-medium text-sm">
+																			{
+																				member.name
+																			}
+																		</span>
+																	</div>
+
+																	{isSelected ? (
+																		<CheckCircle2Icon className="size-4 text-success" />
+																	) : (
+																		<CircleIcon className="size-4 text-muted-foreground" />
+																	)}
+																</button>
+															</li>
+														);
+													},
+												)}
+											</ul>
+
+											<div className="space-y-2 rounded-xl border bg-card px-3 py-2">
+												<p className="text-muted-foreground text-xs">
+													Split preview
+												</p>
+												{sharedPreviewRows.length >
+												0 ? (
+													<ul className="space-y-1.5">
+														{sharedPreviewRows.map(
+															(row) => (
+																<li
+																	key={`${row.fromLabel}-${row.toLabel}-${row.amount}`}
+																	className="flex items-center justify-between rounded-lg bg-muted/60 px-2.5 py-2 text-sm"
+																>
+																	<div className="flex items-center gap-1.5">
+																		<span className="font-medium">
+																			{
+																				row.fromLabel
+																			}
+																		</span>
+																		<ArrowRightIcon className="size-3.5 text-muted-foreground" />
+																		<span className="font-medium">
+																			{
+																				row.toLabel
+																			}
+																		</span>
+																	</div>
+																	<span className="font-semibold">
+																		{formatCurrency(
+																			row.amount,
+																		)}
+																	</span>
+																</li>
+															),
+														)}
+													</ul>
+												) : (
+													<div className="rounded-lg bg-muted/60 px-2.5 py-2 text-xs text-muted-foreground">
+														No dues in this split
+													</div>
+												)}
+											</div>
+										</>
+									) : (
+										<p className="text-muted-foreground text-xs">
+											Create a family group first to add
+											shared splits.
+										</p>
+									)}
 								</div>
 							) : null}
 						</CardContent>

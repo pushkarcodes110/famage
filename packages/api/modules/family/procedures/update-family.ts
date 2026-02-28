@@ -11,7 +11,7 @@ export const updateFamily = protectedProcedure
 		tags: ["Family"],
 		summary: "Update family details",
 		description:
-			"Updates family group details like name and monthly budget for family admins",
+			"Updates family group details like name and monthly budget for family owner",
 	})
 	.input(updateFamilySchema)
 	.handler(async ({ input, context: { user } }) => {
@@ -35,9 +35,9 @@ export const updateFamily = protectedProcedure
 			});
 		}
 
-		if (!["owner", "admin"].includes(familyMembership.role)) {
+		if (familyMembership.role !== "owner") {
 			throw new ORPCError("FORBIDDEN", {
-				message: "Only family admins can update family details.",
+				message: "Only the family creator can update family details.",
 			});
 		}
 

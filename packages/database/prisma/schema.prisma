@@ -45,6 +45,11 @@ model User {
   twofactors         TwoFactor[]
   aiChats            AiChat[]
   expenses           Expense[]
+  paidSharedExpenses SharedExpense[]            @relation("SharedExpensePaidByUser")
+  createdSharedExpenses SharedExpense[]         @relation("SharedExpenseCreatedByUser")
+  sharedExpenseParticipants SharedExpenseParticipant[]
+  sharedSettlementsFrom SharedSettlement[]      @relation("SharedSettlementFromUser")
+  sharedSettlementsTo SharedSettlement[]        @relation("SharedSettlementToUser")
 
   @@unique([email])
   @@unique([username])
@@ -73,10 +78,30 @@ model Expense {
   visibility  ExpenseVisibility @default(PERSONAL)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  sharedExpense SharedExpense?
 
   @@index([userId])
   @@index([userId, expenseDate])
   @@map("expense")
+}
+
+enum SharedSplitMode {
+  EQUAL
+  EXACT
+  PERCENTAGE
+  SHARES
+}
+
+enum SharedSplitShareType {
+  EQUAL
+  EXACT
+  PERCENTAGE
+  SHARES
+}
+
+enum SharedSettlementStatus {
+  PENDING
+  SETTLED
 }
 
 model Session {
@@ -178,9 +203,75 @@ model Organization {
   invitations        Invitation[]
   purchases          Purchase[]
   aiChats            AiChat[]
+  sharedExpenses     SharedExpense[]
+  sharedSettlements  SharedSettlement[]
 
   @@unique([slug])
   @@map("organization")
+}
+
+model SharedExpense {
+  id               String                     @id @default(cuid())
+  expenseId        String                     @unique
+  expense          Expense                    @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  organizationId   String
+  organization     Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  paidByUserId     String
+  paidByUser       User                       @relation("SharedExpensePaidByUser", fields: [paidByUserId], references: [id], onDelete: Cascade)
+  splitMode        SharedSplitMode            @default(EQUAL)
+  excludePayer     Boolean                    @default(false)
+  createdByUserId  String
+  createdByUser    User                       @relation("SharedExpenseCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  participants     SharedExpenseParticipant[]
+  settlements      SharedSettlement[]
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  @@index([organizationId])
+  @@index([paidByUserId])
+  @@index([createdByUserId])
+  @@map("shared_expense")
+}
+
+model SharedExpenseParticipant {
+  id              String               @id @default(cuid())
+  sharedExpenseId String
+  sharedExpense   SharedExpense        @relation(fields: [sharedExpenseId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shareType       SharedSplitShareType @default(EQUAL)
+  shareValue      Int?
+  owedAmount      Int
+  createdAt       DateTime             @default(now())
+
+  @@unique([sharedExpenseId, userId])
+  @@index([sharedExpenseId])
+  @@index([userId])
+  @@map("shared_expense_participant")
+}
+
+model SharedSettlement {
+  id                  String                 @id @default(cuid())
+  organizationId      String
+  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  fromUserId          String
+  fromUser            User                   @relation("SharedSettlementFromUser", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId            String
+  toUser              User                   @relation("SharedSettlementToUser", fields: [toUserId], references: [id], onDelete: Cascade)
+  amount              Int
+  status              SharedSettlementStatus @default(PENDING)
+  settledAt           DateTime?
+  sourceSharedExpenseId String?
+  sourceSharedExpense SharedExpense?         @relation(fields: [sourceSharedExpenseId], references: [id], onDelete: SetNull)
+  note                String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  @@index([organizationId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([sourceSharedExpenseId])
+  @@map("shared_settlement")
 }
 
 model Member {
