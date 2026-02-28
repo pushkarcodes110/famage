@@ -24,9 +24,16 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@ui/components/card";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "@ui/components/dialog";
 import { Input } from "@ui/components/input";
 import { cn } from "@ui/lib";
-import { HouseIcon, UsersIcon } from "lucide-react";
+import { HouseIcon, PlusIcon, UsersIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -42,7 +49,16 @@ const avatarClasses = [
 	"bg-orange-100 text-orange-700",
 ] as const;
 
-const createFamilyFormSchema = z.object({
+const budgetSegmentClasses = [
+	"bg-amber-500",
+	"bg-sky-500",
+	"bg-emerald-500",
+	"bg-rose-500",
+	"bg-violet-500",
+	"bg-orange-500",
+] as const;
+
+const familyFormSchema = z.object({
 	name: z.string().trim().min(2, "Enter your family name"),
 	monthlyBudget: z
 		.string()
@@ -56,8 +72,17 @@ const inviteMemberFormSchema = z.object({
 	email: z.string().trim().email("Enter a valid email"),
 });
 
-type CreateFamilyFormValues = z.infer<typeof createFamilyFormSchema>;
+type FamilyFormValues = z.infer<typeof familyFormSchema>;
 type InviteMemberFormValues = z.infer<typeof inviteMemberFormSchema>;
+
+interface BudgetSegment {
+	userId: string;
+	name: string;
+	monthlySpend: number;
+	percentOfReference: number;
+	barWidthPercent: number;
+	barClassName: string;
+}
 
 export function FamilyScreen() {
 	const { user, loaded } = useSession();
@@ -65,6 +90,8 @@ export function FamilyScreen() {
 	const [selectedMemberUserId, setSelectedMemberUserId] = useState<
 		string | null
 	>(null);
+	const [isInviteMemberDialogOpen, setIsInviteMemberDialogOpen] =
+		useState(false);
 	const [selectedPeriod, setSelectedPeriod] = useState<
 		"daily" | "weekly" | "monthly"
 	>("monthly");
@@ -84,8 +111,16 @@ export function FamilyScreen() {
 
 	const family = familyOverviewQuery.data?.family ?? null;
 
-	const createFamilyForm = useForm<CreateFamilyFormValues>({
-		resolver: zodResolver(createFamilyFormSchema),
+	const createFamilyForm = useForm<FamilyFormValues>({
+		resolver: zodResolver(familyFormSchema),
+		defaultValues: {
+			name: "",
+			monthlyBudget: "",
+		},
+	});
+
+	const familySettingsForm = useForm<FamilyFormValues>({
+		resolver: zodResolver(familyFormSchema),
 		defaultValues: {
 			name: "",
 			monthlyBudget: "",
@@ -113,10 +148,24 @@ export function FamilyScreen() {
 		},
 	});
 
+	const updateFamilyMutation = useMutation({
+		...orpc.family.update.mutationOptions(),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries();
+			toast.success("Family details updated");
+		},
+		onError: (error) => {
+			familySettingsForm.setError("root", {
+				message: error.message,
+			});
+		},
+	});
+
 	const inviteMemberMutation = useMutation({
 		...orpc.family.inviteMember.mutationOptions(),
 		onSuccess: async () => {
 			inviteMemberForm.reset();
+			setIsInviteMemberDialogOpen(false);
 			await queryClient.invalidateQueries();
 			toast.success("Invitation sent");
 		},
@@ -145,6 +194,20 @@ export function FamilyScreen() {
 		});
 	}, [family?.members]);
 
+	useEffect(() => {
+		if (!family) {
+			return;
+		}
+
+		familySettingsForm.reset({
+			name: family.name,
+			monthlyBudget:
+				typeof family.monthlyBudget === "number"
+					? String(family.monthlyBudget)
+					: "",
+		});
+	}, [family, familySettingsForm]);
+
 	const memberExpensesQuery = useQuery(
 		orpc.family.memberExpenses.queryOptions({
 			input:
@@ -168,8 +231,73 @@ export function FamilyScreen() {
 		);
 	}, [family?.monthlyBudget, family?.totalMonthlySpend]);
 
+	const budgetSegments = useMemo(() => {
+		if (!family?.members.length) {
+			return [] as BudgetSegment[];
+		}
+
+		const hasBudget =
+			typeof family.monthlyBudget === "number" &&
+			family.monthlyBudget > 0;
+		const denominator = hasBudget
+			? (family.monthlyBudget ?? 0)
+			: Math.max(family.totalMonthlySpend, 1);
+		let accumulatedWidth = 0;
+
+		return family.members
+			.map((member, index) => {
+				const percentOfReference =
+					(member.monthlySpend / Math.max(denominator, 1)) * 100;
+				const barWidthPercent = hasBudget
+					? Math.max(
+							0,
+							Math.min(
+								percentOfReference,
+								100 - accumulatedWidth,
+							),
+						)
+					: Math.max(percentOfReference, 0);
+
+				accumulatedWidth += barWidthPercent;
+
+				return {
+					userId: member.userId,
+					name: member.name,
+					monthlySpend: member.monthlySpend,
+					percentOfReference,
+					barWidthPercent,
+					barClassName:
+						budgetSegmentClasses[
+							index % budgetSegmentClasses.length
+						],
+				};
+			})
+			.filter(
+				(segment) =>
+					segment.percentOfReference > 0 || segment.monthlySpend > 0,
+			);
+	}, [family]);
+
+	const budgetOverflowAmount = useMemo(() => {
+		if (!family?.monthlyBudget || family.monthlyBudget <= 0) {
+			return 0;
+		}
+
+		return Math.max(family.totalMonthlySpend - family.monthlyBudget, 0);
+	}, [family?.monthlyBudget, family?.totalMonthlySpend]);
+
 	const onSubmitCreateFamily = createFamilyForm.handleSubmit((values) => {
 		createFamilyMutation.mutate({
+			name: values.name,
+			monthlyBudget:
+				values.monthlyBudget === ""
+					? undefined
+					: Number.parseInt(values.monthlyBudget, 10),
+		});
+	});
+
+	const onSubmitFamilySettings = familySettingsForm.handleSubmit((values) => {
+		updateFamilyMutation.mutate({
 			name: values.name,
 			monthlyBudget:
 				values.monthlyBudget === ""
@@ -340,18 +468,37 @@ export function FamilyScreen() {
 
 			<Card className="border-primary/20 bg-gradient-to-br from-primary/15 via-card to-card">
 				<CardHeader className="pb-3">
-					<div className="flex items-center gap-2">
-						<span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-							<HouseIcon className="size-4" />
-						</span>
-						<div>
-							<CardTitle className="text-lg">
-								{family?.name}
-							</CardTitle>
-							<CardDescription>
-								{family?.members.length ?? 0} members connected
-							</CardDescription>
+					<div className="flex items-center justify-between gap-3">
+						<div className="flex items-center gap-2">
+							<span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+								<HouseIcon className="size-4" />
+							</span>
+							<div>
+								<CardTitle className="text-lg">
+									{family?.name}
+								</CardTitle>
+								<CardDescription>
+									{family?.members.length ?? 0} members
+									connected
+								</CardDescription>
+							</div>
 						</div>
+						{family?.canManageInvites ? (
+							<Button
+								type="button"
+								size="icon"
+								variant="outline"
+								className="size-8 rounded-full border-primary/40 bg-card/80"
+								onClick={() =>
+									setIsInviteMemberDialogOpen(true)
+								}
+							>
+								<PlusIcon className="size-4" />
+								<span className="sr-only">
+									Invite family member
+								</span>
+							</Button>
+						) : null}
 					</div>
 				</CardHeader>
 
@@ -380,12 +527,65 @@ export function FamilyScreen() {
 									{budgetUsagePercent}%
 								</span>
 							</div>
-							<div className="h-2 rounded-full bg-primary/20">
-								<div
-									className="h-2 rounded-full bg-primary"
-									style={{ width: `${budgetUsagePercent}%` }}
-								/>
+							<div className="h-6 overflow-hidden rounded-full bg-primary/15">
+								<div className="flex h-full">
+									{budgetSegments.map((segment) => (
+										<div
+											key={segment.userId}
+											className={cn(
+												"flex h-full items-center justify-center text-[10px] font-semibold text-white",
+												segment.barClassName,
+											)}
+											style={{
+												width: `${segment.barWidthPercent}%`,
+											}}
+											title={`${segment.name}: ${Math.round(segment.percentOfReference)}%`}
+										>
+											{segment.barWidthPercent >= 12
+												? `${Math.round(segment.percentOfReference)}%`
+												: null}
+										</div>
+									))}
+								</div>
 							</div>
+
+							<div className="space-y-1">
+								{budgetSegments.map((segment) => (
+									<div
+										key={segment.userId}
+										className="flex items-center justify-between text-xs"
+									>
+										<div className="flex items-center gap-2">
+											<span
+												className={cn(
+													"inline-block size-2.5 rounded-full",
+													segment.barClassName,
+												)}
+											/>
+											<span className="text-muted-foreground">
+												{segment.name}
+											</span>
+										</div>
+										<span className="font-medium">
+											{formatCurrency(
+												segment.monthlySpend,
+											)}{" "}
+											(
+											{Math.round(
+												segment.percentOfReference,
+											)}
+											%)
+										</span>
+									</div>
+								))}
+							</div>
+
+							{budgetOverflowAmount > 0 ? (
+								<p className="text-destructive text-xs">
+									Over budget by{" "}
+									{formatCurrency(budgetOverflowAmount)}.
+								</p>
+							) : null}
 						</div>
 					) : null}
 				</CardContent>
@@ -395,13 +595,100 @@ export function FamilyScreen() {
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-base">
-							Invite family member
+							Family settings
 						</CardTitle>
 						<CardDescription>
-							Only existing app users can be invited.
+							Update family name and monthly budget.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="pt-0">
+						<form
+							className="space-y-3"
+							onSubmit={onSubmitFamilySettings}
+						>
+							<div className="space-y-1">
+								<label
+									htmlFor="settings-family-name"
+									className="font-medium text-xs"
+								>
+									Family name
+								</label>
+								<Input
+									id="settings-family-name"
+									type="text"
+									{...familySettingsForm.register("name")}
+								/>
+								{familySettingsForm.formState.errors.name ? (
+									<p className="text-destructive text-xs">
+										{
+											familySettingsForm.formState.errors
+												.name.message
+										}
+									</p>
+								) : null}
+							</div>
+
+							<div className="space-y-1">
+								<label
+									htmlFor="settings-monthly-budget"
+									className="font-medium text-xs"
+								>
+									Monthly budget
+								</label>
+								<Input
+									id="settings-monthly-budget"
+									inputMode="numeric"
+									placeholder="Ex: 50000"
+									{...familySettingsForm.register(
+										"monthlyBudget",
+									)}
+								/>
+								{familySettingsForm.formState.errors
+									.monthlyBudget ? (
+									<p className="text-destructive text-xs">
+										{
+											familySettingsForm.formState.errors
+												.monthlyBudget.message
+										}
+									</p>
+								) : null}
+							</div>
+
+							{familySettingsForm.formState.errors.root
+								?.message ? (
+								<p className="text-destructive text-xs">
+									{
+										familySettingsForm.formState.errors.root
+											.message
+									}
+								</p>
+							) : null}
+
+							<Button
+								type="submit"
+								className="w-full"
+								loading={updateFamilyMutation.isPending}
+							>
+								Save family details
+							</Button>
+						</form>
+					</CardContent>
+				</Card>
+			) : null}
+
+			{family?.canManageInvites ? (
+				<Dialog
+					open={isInviteMemberDialogOpen}
+					onOpenChange={setIsInviteMemberDialogOpen}
+				>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>Invite family member</DialogTitle>
+							<DialogDescription>
+								Only existing app users can be invited.
+							</DialogDescription>
+						</DialogHeader>
+
 						<form
 							className="space-y-3"
 							onSubmit={onSubmitInviteMember}
@@ -446,8 +733,8 @@ export function FamilyScreen() {
 								Send invite
 							</Button>
 						</form>
-					</CardContent>
-				</Card>
+					</DialogContent>
+				</Dialog>
 			) : null}
 
 			{family?.pendingInvitations.length ? (

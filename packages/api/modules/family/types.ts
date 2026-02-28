@@ -24,6 +24,16 @@ export const createFamilySchema = z.object({
 		.optional(),
 });
 
+export const updateFamilySchema = z.object({
+	name: z.string().trim().min(2).max(80),
+	monthlyBudget: z
+		.number()
+		.int("Monthly budget must be a whole number")
+		.min(0, "Monthly budget cannot be negative")
+		.max(1_000_000_000, "Monthly budget is too large")
+		.optional(),
+});
+
 export const inviteFamilyMemberSchema = z.object({
 	email: z.string().trim().email(),
 });
