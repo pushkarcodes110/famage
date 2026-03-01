@@ -109,6 +109,8 @@ const categoryIcons: Record<TransactionCategoryKey, LucideIcon> = {
 	[INCOME_SOURCE.otherIncome]: ReceiptTextIcon,
 };
 
+const EMPTY_FAMILY_MEMBERS: Array<{ userId: string; name: string }> = [];
+
 export function AddExpenseScreen() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
@@ -179,7 +181,10 @@ export function AddExpenseScreen() {
 		createExpenseMutation.isPending || updateExpenseMutation.isPending;
 	const isEditingExpenseLoading = isEditing && expenseQuery.isPending;
 	const family = familyOverviewQuery.data?.family ?? null;
-	const familyMemberOptions = family?.members ?? [];
+	const familyMemberOptions = useMemo(
+		() => family?.members ?? EMPTY_FAMILY_MEMBERS,
+		[family?.members],
+	);
 	const familyMemberNameByUserId = useMemo(
 		() =>
 			new Map(
@@ -308,8 +313,12 @@ export function AddExpenseScreen() {
 
 	useEffect(() => {
 		if (!familyMemberOptions.length) {
-			setSelectedSharedMemberUserIds([]);
-			setSharedPaidByUserId(null);
+			setSelectedSharedMemberUserIds((currentValue) =>
+				currentValue.length ? [] : currentValue,
+			);
+			setSharedPaidByUserId((currentValue) =>
+				currentValue === null ? currentValue : null,
+			);
 			return;
 		}
 
