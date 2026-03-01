@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	EXPENSE_PERIOD,
 	EXPENSE_TYPE,
 	type ExpenseTypeValue,
 	SHARED_SPLIT_MODE,
@@ -121,7 +122,7 @@ export function AddExpenseScreen() {
 	const requestedType = searchParams.get("type");
 	const isEditing = Boolean(expenseId);
 
-	const [amount, setAmount] = useState("128");
+	const [amount, setAmount] = useState("");
 	const [entryType, setEntryType] = useState<ExpenseTypeValue>(() =>
 		getEntryTypeFromQuery(requestedType),
 	);
@@ -171,6 +172,34 @@ export function AddExpenseScreen() {
 	const updateExpenseMutation = useMutation(
 		orpc.expenses.update.mutationOptions(),
 	);
+
+	async function invalidateFamageData() {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: orpc.expenses.list.queryKey({
+					input: { period: EXPENSE_PERIOD.daily },
+				}),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.expenses.list.queryKey({
+					input: { period: EXPENSE_PERIOD.weekly },
+				}),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.expenses.list.queryKey({
+					input: { period: EXPENSE_PERIOD.monthly },
+				}),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.expenses.list.queryKey({
+					input: { period: EXPENSE_PERIOD.yearly },
+				}),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.family.overview.queryKey(),
+			}),
+		]);
+	}
 
 	const isShared = visibility === EXPENSE_VISIBILITY.shared;
 	const isIncome = entryType === EXPENSE_TYPE.income;
@@ -423,7 +452,7 @@ export function AddExpenseScreen() {
 				toast.success(isIncome ? "Credit saved" : "Expense saved");
 			}
 
-			await queryClient.invalidateQueries();
+			await invalidateFamageData();
 			router.push("/famage");
 		} catch (error) {
 			if (typeof error === "object" && error !== null) {
@@ -579,24 +608,30 @@ export function AddExpenseScreen() {
 					</CardHeader>
 
 					<CardContent className="space-y-3">
-						<Input
-							inputMode="numeric"
-							placeholder="0"
-							value={amount}
-							onChange={(event) => setAmount(event.target.value)}
+						<div
 							className={cn(
-								"h-20 border-none text-center font-semibold text-4xl shadow-none transition-colors duration-300",
-								isIncome
-									? "bg-success/10 text-success"
-									: "bg-destructive/10 text-destructive",
+								"relative",
+								isIncome ? "text-success" : "text-destructive",
 							)}
-						/>
-						<p className="text-center text-muted-foreground text-xs">
-							Preview:{" "}
-							{Number.isNaN(parsedAmount)
-								? "₹0"
-								: formatCurrency(parsedAmount)}
-						</p>
+						>
+							<span className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 font-semibold text-3xl">
+								₹
+							</span>
+							<Input
+								inputMode="numeric"
+								placeholder=""
+								value={amount}
+								onChange={(event) =>
+									setAmount(event.target.value)
+								}
+								className={cn(
+									"h-20 border-none pl-12 text-center font-semibold text-4xl shadow-none transition-colors duration-300",
+									isIncome
+										? "bg-success/10 text-success"
+										: "bg-destructive/10 text-destructive",
+								)}
+							/>
+						</div>
 					</CardContent>
 				</Card>
 

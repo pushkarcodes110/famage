@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 		default: config.appName,
 		template: `%s | ${config.appName}`,
 	},
+	themeColor: "#0b0f14",
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {

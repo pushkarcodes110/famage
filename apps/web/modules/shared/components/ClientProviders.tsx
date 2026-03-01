@@ -5,6 +5,7 @@ import { ProgressProvider } from "@bprogress/next/app";
 import { config } from "@repo/config";
 import { ApiClientProvider } from "@shared/components/ApiClientProvider";
 import { ConsentBanner } from "@shared/components/ConsentBanner";
+import { PwaServiceWorkerRegister } from "@shared/components/PwaServiceWorkerRegister";
 import { Toaster } from "@ui/components/toast";
 import { ThemeProvider } from "next-themes";
 import type { PropsWithChildren } from "react";
@@ -26,13 +27,12 @@ export function ClientProviders({ children }: PropsWithChildren) {
 					defaultTheme={config.ui.defaultTheme}
 					themes={config.ui.enabledThemes}
 				>
-					<ApiClientProvider>
-						{children}
+					{children}
 
-						<Toaster position="top-right" />
-						<ConsentBanner />
-						<AnalyticsScript />
-					</ApiClientProvider>
+					<Toaster position="top-right" />
+					<ConsentBanner />
+					<AnalyticsScript />
+					<PwaServiceWorkerRegister />
 				</ThemeProvider>
 			</ProgressProvider>
 		</ApiClientProvider>

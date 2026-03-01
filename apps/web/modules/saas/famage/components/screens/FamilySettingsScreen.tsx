@@ -100,7 +100,9 @@ export function FamilySettingsScreen() {
 	const updateFamilyMutation = useMutation({
 		...orpc.family.update.mutationOptions(),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries();
+			await queryClient.invalidateQueries({
+				queryKey: orpc.family.overview.queryKey(),
+			});
 			toast.success("Family details updated");
 		},
 		onError: (error) => {
@@ -114,7 +116,9 @@ export function FamilySettingsScreen() {
 		...orpc.family.inviteMember.mutationOptions(),
 		onSuccess: async () => {
 			inviteMemberForm.reset();
-			await queryClient.invalidateQueries();
+			await queryClient.invalidateQueries({
+				queryKey: orpc.family.overview.queryKey(),
+			});
 			toast.success("Invitation sent");
 		},
 		onError: (error) => {
@@ -140,7 +144,9 @@ export function FamilySettingsScreen() {
 			}
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries();
+			await queryClient.invalidateQueries({
+				queryKey: orpc.family.overview.queryKey(),
+			});
 			toast.success("Member removed");
 		},
 		onError: (error) => {
@@ -159,7 +165,9 @@ export function FamilySettingsScreen() {
 			}
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries();
+			await queryClient.invalidateQueries({
+				queryKey: orpc.family.overview.queryKey(),
+			});
 			toast.success("Invitation canceled");
 		},
 		onError: (error) => {

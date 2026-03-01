@@ -129,7 +129,9 @@ export function FamilyScreen() {
 		...orpc.family.create.mutationOptions(),
 		onSuccess: async () => {
 			createFamilyForm.reset();
-			await queryClient.invalidateQueries();
+			await queryClient.invalidateQueries({
+				queryKey: orpc.family.overview.queryKey(),
+			});
 			toast.success("Family created");
 		},
 		onError: (error) => {

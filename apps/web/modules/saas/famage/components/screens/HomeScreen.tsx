@@ -1,14 +1,17 @@
 "use client";
 
-import { EXPENSE_PERIOD, type ExpensePeriod } from "@repo/api/modules/expenses/types";
+import {
+	EXPENSE_PERIOD,
+	type ExpensePeriod,
+} from "@repo/api/modules/expenses/types";
 import { useSession } from "@saas/auth/hooks/use-session";
 import {
+	dashboardSummaries,
 	EXPENSE_CATEGORY,
 	FAMAGE_PERIOD,
-	INCOME_SOURCE,
 	formatCurrency,
-	dashboardSummaries,
 	getTransactionCategoryLabel,
+	INCOME_SOURCE,
 	recentTransactions,
 } from "@saas/famage/lib/mock-data";
 import { orpc } from "@shared/lib/orpc-query-utils";
@@ -28,6 +31,7 @@ import {
 	CardTitle,
 } from "@ui/components/card";
 import { cn } from "@ui/lib";
+import type { LucideIcon } from "lucide-react";
 import {
 	ArrowDownCircleIcon,
 	ArrowUpCircleIcon,
@@ -46,7 +50,6 @@ import {
 	Trash2Icon,
 	TvIcon,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -82,7 +85,10 @@ const categoryIconMap: Record<string, LucideIcon> = {
 	[INCOME_SOURCE.otherIncome]: ReceiptTextIcon,
 };
 
-function formatTransactionDate(period: ExpensePeriod, dateString: string): string {
+function formatTransactionDate(
+	period: ExpensePeriod,
+	dateString: string,
+): string {
 	const expenseDate = new Date(dateString);
 
 	if (period === EXPENSE_PERIOD.daily) {
@@ -123,6 +129,34 @@ export function HomeScreen() {
 		orpc.expenses.delete.mutationOptions(),
 	);
 
+	async function invalidateFamageData() {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: orpc.expenses.list.queryKey({
+					input: { period: EXPENSE_PERIOD.daily },
+				}),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.expenses.list.queryKey({
+					input: { period: EXPENSE_PERIOD.weekly },
+				}),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.expenses.list.queryKey({
+					input: { period: EXPENSE_PERIOD.monthly },
+				}),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.expenses.list.queryKey({
+					input: { period: EXPENSE_PERIOD.yearly },
+				}),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.family.overview.queryKey(),
+			}),
+		]);
+	}
+
 	const isUsingLiveData = Boolean(user);
 
 	const summary = isUsingLiveData
@@ -131,20 +165,26 @@ export function HomeScreen() {
 				totalIncome: expensesQuery.data?.summary.totalIncome ?? 0,
 				balance: expensesQuery.data?.summary.balance ?? 0,
 			}
-		: dashboardSummaries[period as keyof typeof dashboardSummaries] ??
-			dashboardSummaries[FAMAGE_PERIOD.monthly];
+		: (dashboardSummaries[period as keyof typeof dashboardSummaries] ??
+			dashboardSummaries[FAMAGE_PERIOD.monthly]);
 
 	const transactions: HomeTransaction[] = isUsingLiveData
 		? (expensesQuery.data?.expenses ?? []).map((expense) => ({
 				id: expense.id,
 				title: getTransactionCategoryLabel(expense.category),
 				category: expense.category,
-				amount: expense.type === "income" ? expense.amount : -expense.amount,
-				dateLabel: formatTransactionDate(period, expense.expenseDate.toString()),
+				amount:
+					expense.type === "income"
+						? expense.amount
+						: -expense.amount,
+				dateLabel: formatTransactionDate(
+					period,
+					expense.expenseDate.toString(),
+				),
 				isShared: expense.visibility === "shared",
 			}))
-		: recentTransactions[period as keyof typeof recentTransactions] ??
-			recentTransactions[FAMAGE_PERIOD.monthly];
+		: (recentTransactions[period as keyof typeof recentTransactions] ??
+			recentTransactions[FAMAGE_PERIOD.monthly]);
 
 	async function handleDeleteExpense(id: string) {
 		if (!window.confirm("Delete this expense?")) {
@@ -153,7 +193,7 @@ export function HomeScreen() {
 
 		try {
 			await deleteExpenseMutation.mutateAsync({ id });
-			await queryClient.invalidateQueries();
+			await invalidateFamageData();
 			toast.success("Expense deleted");
 		} catch {
 			toast.error("Failed to delete expense");
@@ -210,21 +250,27 @@ export function HomeScreen() {
 				<CardContent className="space-y-3 p-4 pt-0">
 					<div className="grid grid-cols-3 gap-3">
 						<div className="rounded-2xl bg-card/80 p-3">
-							<p className="text-[11px] text-muted-foreground">Expenses</p>
+							<p className="text-[11px] text-muted-foreground">
+								Expenses
+							</p>
 							<p className="mt-1 font-semibold text-destructive text-sm">
 								{formatCurrency(summary.totalExpenses)}
 							</p>
 						</div>
 
 						<div className="rounded-2xl bg-card/80 p-3">
-							<p className="text-[11px] text-muted-foreground">Income</p>
+							<p className="text-[11px] text-muted-foreground">
+								Income
+							</p>
 							<p className="mt-1 font-semibold text-sm text-success">
 								{formatCurrency(summary.totalIncome)}
 							</p>
 						</div>
 
 						<div className="rounded-2xl bg-card/80 p-3">
-							<p className="text-[11px] text-muted-foreground">Balance</p>
+							<p className="text-[11px] text-muted-foreground">
+								Balance
+							</p>
 							<p className="mt-1 font-semibold text-foreground text-sm">
 								{formatCurrency(summary.balance)}
 							</p>
@@ -232,11 +278,25 @@ export function HomeScreen() {
 					</div>
 
 					<div className="grid grid-cols-2 gap-2">
-						<Button asChild size="sm" className="h-10 rounded-xl" variant="primary">
-							<Link href="/famage/add-expense">+ Add Expense</Link>
+						<Button
+							asChild
+							size="sm"
+							className="h-10 rounded-xl"
+							variant="primary"
+						>
+							<Link href="/famage/add-expense">
+								+ Add Expense
+							</Link>
 						</Button>
-						<Button asChild size="sm" className="h-10 rounded-xl" variant="outline">
-							<Link href="/famage/add-expense?type=income">+ Add Credit</Link>
+						<Button
+							asChild
+							size="sm"
+							className="h-10 rounded-xl"
+							variant="outline"
+						>
+							<Link href="/famage/add-expense?type=income">
+								+ Add Credit
+							</Link>
 						</Button>
 					</div>
 				</CardContent>
@@ -245,8 +305,14 @@ export function HomeScreen() {
 			{loaded && !user ? (
 				<Card className="border-dashed bg-card/70">
 					<CardContent className="space-y-3 p-4 text-center">
-						<p className="font-medium text-sm">Sign in to sync your expenses</p>
-						<Button asChild variant="outline" className="h-10 rounded-xl">
+						<p className="font-medium text-sm">
+							Sign in to sync your expenses
+						</p>
+						<Button
+							asChild
+							variant="outline"
+							className="h-10 rounded-xl"
+						>
 							<Link href="/famage/auth/login?redirectTo=/famage">
 								Sign in
 							</Link>
@@ -258,7 +324,8 @@ export function HomeScreen() {
 			<div className="flex items-center justify-between">
 				<h2 className="font-semibold text-base">Recent transactions</h2>
 				<p className="text-muted-foreground text-xs">
-					{transactions.length} item{transactions.length === 1 ? "" : "s"}
+					{transactions.length} item
+					{transactions.length === 1 ? "" : "s"}
 				</p>
 			</div>
 
@@ -272,7 +339,8 @@ export function HomeScreen() {
 				<ul className="space-y-3">
 					{transactions.map((transaction) => {
 						const Icon =
-							categoryIconMap[transaction.category] ?? categoryIconMap.other;
+							categoryIconMap[transaction.category] ??
+							categoryIconMap.other;
 						const isPositive = transaction.amount > 0;
 
 						return (
@@ -309,13 +377,20 @@ export function HomeScreen() {
 												<ArrowDownCircleIcon className="size-4 text-destructive" />
 											)}
 											<p
-												className={cn("font-semibold text-sm", {
-													"text-destructive": !isPositive,
-													"text-success": isPositive,
-												})}
+												className={cn(
+													"font-semibold text-sm",
+													{
+														"text-destructive":
+															!isPositive,
+														"text-success":
+															isPositive,
+													},
+												)}
 											>
 												{`${isPositive ? "+" : ""}${formatCurrency(
-													Math.abs(transaction.amount),
+													Math.abs(
+														transaction.amount,
+													),
 												)}`}
 											</p>
 										</div>
@@ -341,8 +416,14 @@ export function HomeScreen() {
 												size="icon"
 												variant="light"
 												className="size-8"
-												onClick={() => handleDeleteExpense(transaction.id)}
-												disabled={deleteExpenseMutation.isPending}
+												onClick={() =>
+													handleDeleteExpense(
+														transaction.id,
+													)
+												}
+												disabled={
+													deleteExpenseMutation.isPending
+												}
 											>
 												<Trash2Icon className="size-3.5 text-destructive" />
 											</Button>
@@ -356,12 +437,20 @@ export function HomeScreen() {
 			) : (
 				<Card className="border-dashed">
 					<CardContent className="space-y-3 p-4 text-center">
-						<p className="font-medium text-sm">No transactions yet</p>
+						<p className="font-medium text-sm">
+							No transactions yet
+						</p>
 						<p className="text-muted-foreground text-xs">
 							Add your first expense to populate this list.
 						</p>
-						<Button asChild className="h-10 rounded-xl" variant="outline">
-							<Link href="/famage/add-expense">Add your first expense</Link>
+						<Button
+							asChild
+							className="h-10 rounded-xl"
+							variant="outline"
+						>
+							<Link href="/famage/add-expense">
+								Add your first expense
+							</Link>
 						</Button>
 					</CardContent>
 				</Card>
@@ -373,9 +462,12 @@ export function HomeScreen() {
 						<SparklesIcon className="size-4" />
 					</span>
 					<div>
-						<p className="font-medium text-sm">Keep expenses updated daily</p>
+						<p className="font-medium text-sm">
+							Keep expenses updated daily
+						</p>
 						<p className="mt-1 text-muted-foreground text-xs leading-relaxed">
-							Your summaries and reports update instantly as you save or edit expenses.
+							Your summaries and reports update instantly as you
+							save or edit expenses.
 						</p>
 					</div>
 				</CardContent>
